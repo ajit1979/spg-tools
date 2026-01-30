@@ -1,0 +1,4 @@
+*/environments/*
+build/
+dist/
+.cache
