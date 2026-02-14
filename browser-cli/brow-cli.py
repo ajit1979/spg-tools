@@ -75,20 +75,24 @@ def main(url, timeout, output, mask, verbose, browser, force_refresh):
             click.secho("To refresh, run with --force-refresh", fg='red', bold=True)
             click.echo("="*60)
             
+            # Keep unmasked result for file operations
+            display_result = cached_result.copy()
+            
             # Display cached tokens
             click.echo("\n" + "="*60)
             click.echo("Cached Tokens:")
             click.echo("="*60)
-            output_str = format_output(cached_result, output_format=output)
             if mask:
-                cached_result = mask_sensitive_data(cached_result)
+                display_result = mask_sensitive_data(display_result)
+            output_str = format_output(display_result, output_format=output)
             click.echo(output_str)
             
-            # Generate/update Bruno files from cache
+            # Generate/update Bruno files and VS Code settings from cache
             click.echo("\n" + "="*60)
             click.echo("Updating Bruno environment files from cache...")
             click.echo("="*60)
             generate_bruno_env_files(cached_result)
+            update_vscode_settings_file(cached_result)
             return
     
     click.echo(f"Opening browser to: {url}")
@@ -112,6 +116,9 @@ def main(url, timeout, output, mask, verbose, browser, force_refresh):
             if verbose:
                 click.echo(f"Debug: Extracted tokens: {result}")
             
+            # Keep unmasked result for file operations
+            unmasked_result = result.copy()
+            
             # Apply masking if requested
             if mask:
                 result = mask_sensitive_data(result)
@@ -127,14 +134,15 @@ def main(url, timeout, output, mask, verbose, browser, force_refresh):
                 click.echo("\nWarning: No tokens were extracted. Login may have failed.", err=True)
                 sys.exit(1)
             
-            # Generate Bruno environment files in API folders
+            # Generate Bruno environment files and update VS Code settings with unmasked tokens
             click.echo("\n" + "="*60)
             click.echo("Generating Bruno environment files...")
             click.echo("="*60)
-            generate_bruno_env_files(result)
+            generate_bruno_env_files(unmasked_result)
+            update_vscode_settings_file(unmasked_result)
             
             # Save to cache
-            save_to_cache(result)
+            save_to_cache(unmasked_result)
                 
     except KeyboardInterrupt:
         click.echo("\nOperation cancelled by user.", err=True)
@@ -209,6 +217,53 @@ def generate_bruno_env_files(tokens):
         # Write file
         bru_file.write_text(content)
         click.echo(f"✓ Created {bru_file.relative_to(Path.cwd())}")
+
+
+def update_vscode_settings_file(tokens):
+    """
+    Update .vscode/settings.json with authentication tokens.
+    
+    Args:
+        tokens: Dict with keys 'jsessionid', 'token', 'x-signavio-id'
+    """
+    # Extract values
+    signavio_id = tokens.get('token') or tokens.get('x-signavio-id')
+    jsessionid = tokens.get('jsessionid')
+    token = tokens.get('token')
+    
+    if not signavio_id or not jsessionid:
+        click.echo("Warning: Could not extract required tokens for settings file", err=True)
+        return
+    
+    settings_path = Path.cwd() / '.vscode' / 'settings.json'
+    
+    # Create .vscode directory if it doesn't exist
+    settings_path.parent.mkdir(exist_ok=True)
+    
+    # Read existing settings or create new dict
+    if settings_path.exists():
+        try:
+            settings = json.load(open(settings_path, 'r'))
+        except (json.JSONDecodeError, IOError):
+            settings = {}
+    else:
+        settings = {}
+    
+    # Ensure structure exists
+    if 'java.test.config' not in settings:
+        settings['java.test.config'] = {}
+    if 'env' not in settings['java.test.config']:
+        settings['java.test.config']['env'] = {}
+    
+    # Update environment variables
+    settings['java.test.config']['env']['X_SIGNAVIO_ID'] = signavio_id
+    settings['java.test.config']['env']['SIGNAVIO_COOKIE'] = f"JSESSIONID={jsessionid}; token={token};"
+    
+    # Write back to file
+    with open(settings_path, 'w') as f:
+        json.dump(settings, f, indent=4)
+    
+    click.echo(f"✓ Updated {settings_path.relative_to(Path.cwd())}")
 
 
 def get_cache_dir():

@@ -2,7 +2,7 @@
 set -e
 
 echo "Installing Playwright browsers..."
-playwright install chromium chrome
+#playwright install chromium chrome
 
 echo "Building standalone CLI executable..."
 pyinstaller --onefile \
