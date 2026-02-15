@@ -24,6 +24,16 @@ def format_output(data, output_format='plain'):
         for key, value in data.items():
             if value is not None:
                 lines.append(f"{key.upper()}: {value}")
+        
+        # Add export statement if we have the required tokens
+        jsessionid = data.get('jsessionid')
+        token = data.get('token') or data.get('x-signavio-id')
+        
+        if jsessionid and token:
+            lines.append("")  # Empty line for separation
+            export_stmt = f"export SIGNAVIO_COOKIE=\"JSESSIONID={jsessionid}; token={token};\" X_SIGNAVIO_ID={token}"
+            lines.append(export_stmt)
+        
         return '\n'.join(lines) if lines else "No tokens extracted"
 
 
