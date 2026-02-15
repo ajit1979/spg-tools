@@ -1,10 +1,10 @@
 # Quick start
 
-./build-cli.sh
 /.dist/brow-cli
 
 # building from code
-cd browser-cli
+./build-cli.sh
+/.dist/brow-cli
 
 ## virtual env
 python3 -m venv venv
