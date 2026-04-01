@@ -28,7 +28,7 @@ The tool is designed to streamline API testing workflows by eliminating the need
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                       brow-cli.py (Main Entry Point)            │
+│                       sig-cred-cli.py (Main Entry Point)            │
 │                      - Click CLI Framework                       │
 │                      - User interaction & orchestration          │
 └─────────────────────────────────────────────────────────────────┘
@@ -72,7 +72,7 @@ The tool is designed to streamline API testing workflows by eliminating the need
 
 ## 3. Component Specifications
 
-### 3.1 Main CLI Module: `brow-cli.py`
+### 3.1 Main CLI Module: `sig-cred-cli.py`
 
 **Purpose**: Orchestrate the entire authentication flow with caching support
 
@@ -189,7 +189,7 @@ DEFAULT_OUTPUT = "plain"
 ### 4.1 Complete Flow (First Run / Force Refresh)
 
 ```
-START (user runs brow-cli.py [options])
+START (user runs sig-cred-cli.py [options])
     │
     ├─► Parse CLI arguments
     │
@@ -409,31 +409,31 @@ playwright>=1.40.0    # Browser automation
 
 ### 10.1 First-Time Setup
 ```bash
-python3 brow-cli.py
+python3 sig-cred-cli.py
 # Credentials extracted, cached, Bruno files generated
 ```
 
 ### 10.2 Repeated Usage (Same Session)
 ```bash
-python3 brow-cli.py  # Uses cache if < 4 hours
+python3 sig-cred-cli.py  # Uses cache if < 4 hours
 # No browser opens, credentials displayed from cache
 ```
 
 ### 10.3 Force Fresh Login
 ```bash
-python3 brow-cli.py --force-refresh
+python3 sig-cred-cli.py --force-refresh
 # Ignores cache, opens browser, new login required
 ```
 
 ### 10.4 Secure Output for Sharing
 ```bash
-python3 brow-cli.py --mask --output json
+python3 sig-cred-cli.py --mask --output json
 # Returns masked tokens in JSON format
 ```
 
 ### 10.5 Integration with CI/CD
 ```bash
-python3 brow-cli.py --output json > tokens.json
+python3 sig-cred-cli.py --output json > tokens.json
 # Use tokens.json in subsequent API testing steps
 ```
 

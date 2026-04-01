@@ -1,10 +1,10 @@
 # Quick start
 
-/.dist/brow-cli
+/.dist/sig-cred-cli
 
 # building from code
 ./build-cli.sh
-/.dist/brow-cli
+/.dist/sig-cred-cli
 
 ## virtual env
 python3 -m venv venv
@@ -20,18 +20,18 @@ deactivate
 
 
 # Normal run (uses cache if available)
-python3 brow-cli.py
+python3 sig-cred-cli.py
 
 # Force fresh login
-python3 brow-cli.py --force-refresh
+python3 sig-cred-cli.py --force-refresh
 
 # Which browser
-python3 brow-cli.py --browser full (google chrome)
-python3 brow-cli.py --browser light (google chromium) - Default
+python3 sig-cred-cli.py --browser full (google chrome)
+python3 sig-cred-cli.py --browser light (google chromium) - Default
 
 # With other options
-python3 brow-cli.py --mask --verbose
-python3 brow-cli.py --output json --force-refresh
+python3 sig-cred-cli.py --mask --verbose
+python3 sig-cred-cli.py --output json --force-refresh
 
 
 

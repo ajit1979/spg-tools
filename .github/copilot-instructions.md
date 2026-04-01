@@ -3,13 +3,13 @@
 ## Project overview
 - Python CLI for extracting Signavio authentication cookies via Playwright with an interactive (headed) browser login.
 - Extracts exactly two cookies: `JSESSIONID` and `token`; `x-signavio-id` is set to the same value as `token`.
-- Main entry point is `browser-cli/brow-cli.py` (caching + Bruno env generation).
+- Main entry point is `browser-cli/sig-cred-cli.py` (caching + Bruno env generation).
 - Supporting modules: `browser_controller.py` (Playwright), `extractor.py` (pure parsing), `output.py` (format/mask), `config.py` (defaults).
 
 ## Core architecture and boundaries
 - Keep extraction logic pure and browser-agnostic in `extractor.py`.
 - Keep Playwright browser control isolated in `browser_controller.py`.
-- Keep CLI orchestration in `brow-cli.py` using Click.
+- Keep CLI orchestration in `sig-cred-cli.py` using Click.
 - Output formatting and masking belong in `output.py`.
 
 ## Caching behavior

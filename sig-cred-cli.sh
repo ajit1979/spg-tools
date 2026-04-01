@@ -11,6 +11,6 @@ pyinstaller --onefile \
   --hidden-import=playwright._impl \
   --hidden-import=subprocess \
   --runtime-tmpdir=/tmp \
-  browser-cli/brow-cli.py
+  browser-cli/sig-cred-cli.py
 
-echo "✓ Build complete! Executable: ./dist/brow-cli"
+echo "✓ Build complete! Executable: ./dist/sig-cred-cli"

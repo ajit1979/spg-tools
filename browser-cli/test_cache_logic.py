@@ -2,7 +2,7 @@
 """
 Caching Implementation Summary and Quick Test
 
-This demonstrates the caching logic that has been implemented in brow-cli.py
+This demonstrates the caching logic that has been implemented in sig-cred-cli.py
 """
 
 from pathlib import Path
@@ -73,13 +73,13 @@ def test_cache_logic():
     
     # Command line interface
     print(f"\n6. Command Line Interface:")
-    print(f"   Usage 1: python brow-cli.py")
+    print(f"   Usage 1: python sig-cred-cli.py")
     print(f"            → Checks cache, uses if valid, opens browser if expired/missing")
     print(f"   ")
-    print(f"   Usage 2: python brow-cli.py --force-refresh")
+    print(f"   Usage 2: python sig-cred-cli.py --force-refresh")
     print(f"            → Bypasses cache, always opens browser")
     print(f"   ")
-    print(f"   Usage 3: python brow-cli.py --verbose --mask")
+    print(f"   Usage 3: python sig-cred-cli.py --verbose --mask")
     print(f"            → Works with cache or fresh login")
     
     # Output messages

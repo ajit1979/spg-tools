@@ -26,18 +26,18 @@ The browser CLI now implements intelligent caching to avoid redundant browser lo
 
 ### Normal run (uses cache if available)
 ```bash
-python brow-cli.py
+python sig-cred-cli.py
 ```
 
 ### Force fresh login (bypasses cache)
 ```bash
-python brow-cli.py --force-refresh
+python sig-cred-cli.py --force-refresh
 ```
 
 ### With other options
 ```bash
-python brow-cli.py --output json --force-refresh
-python brow-cli.py --mask --verbose
+python sig-cred-cli.py --output json --force-refresh
+python sig-cred-cli.py --mask --verbose
 ```
 
 ## Cache Behavior Details
