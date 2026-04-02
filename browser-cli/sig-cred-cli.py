@@ -211,6 +211,7 @@ def generate_bruno_env_files(tokens):
   signavioId: {signavio_id}
   url: https://staging.signavio.com
   cookie: JSESSIONID={jsessionid}; token={token};
+  x-signavio-cookie: JSESSIONID={jsessionid}; token={token};
 }}
 """
         

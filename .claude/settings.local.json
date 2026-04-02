@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/d069900/.claude/**)",
+      "Read(//Users/d069900/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/d069900/.claude/plugins/marketplaces/claude-plugins-official/plugins/spg-tools/skills"
+    ]
+  }
+}
