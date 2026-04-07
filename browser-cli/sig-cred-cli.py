@@ -93,6 +93,7 @@ def main(url, timeout, output, mask, verbose, browser, force_refresh):
             click.echo("="*60)
             generate_bruno_env_files(cached_result)
             update_vscode_settings_file(cached_result)
+            update_task_client_app(cached_result)
             return
     
     click.echo(f"Opening browser to: {url}")
@@ -140,6 +141,7 @@ def main(url, timeout, output, mask, verbose, browser, force_refresh):
             click.echo("="*60)
             generate_bruno_env_files(unmasked_result)
             update_vscode_settings_file(unmasked_result)
+            update_task_client_app(unmasked_result)
             
             # Save to cache
             save_to_cache(unmasked_result)
@@ -265,6 +267,47 @@ def update_vscode_settings_file(tokens):
         json.dump(settings, f, indent=4)
     
     click.echo(f"✓ Updated {settings_path.relative_to(Path.cwd())}")
+
+
+def update_task_client_app(tokens):
+    """
+    Update docs/taskClient-app/index.html with live auth tokens in example chips.
+
+    Args:
+        tokens: Dict with keys 'jsessionid', 'token', 'x-signavio-id'
+    """
+    index_html = Path.cwd() / 'docs' / 'taskClient-app' / 'index.html'
+    if not index_html.exists():
+        return
+
+    signavio_id = tokens.get('token') or tokens.get('x-signavio-id')
+    jsessionid = tokens.get('jsessionid')
+    token = tokens.get('token')
+
+    if not signavio_id or not jsessionid:
+        click.echo("Warning: Could not extract required tokens for taskClient-app update", err=True)
+        return
+
+    content = index_html.read_text()
+
+    # Replace x-signavio-id example value
+    import re
+    content = re.sub(
+        r"(fillExample\('f-xsig',\s*')[^']+(')",
+        lambda m: m.group(1) + signavio_id + m.group(2),
+        content
+    )
+
+    # Replace cookie example value
+    signavio_cookie = f"JSESSIONID={jsessionid}; token={token};"
+    content = re.sub(
+        r"(fillExample\('f-cookie',\s*')[^']+(')",
+        lambda m: m.group(1) + signavio_cookie + m.group(2),
+        content
+    )
+
+    index_html.write_text(content)
+    click.echo(f"✓ Updated {index_html.relative_to(Path.cwd())}")
 
 
 def get_cache_dir():
