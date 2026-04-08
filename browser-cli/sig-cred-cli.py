@@ -104,15 +104,16 @@ def main(url, timeout, output, mask, verbose, browser, force_refresh):
         
         with controller:
             # Navigate to URL and wait for cookies
-            cookies = controller.navigate_and_wait(url)
-            
+            cookies, user_info = controller.navigate_and_wait(url)
+
             if verbose:
                 click.echo(f"\nDebug: Found {len(cookies)} cookies")
                 for c in cookies:
                     click.echo(f"  - {c['name']}: {c['value'][:30]}..." if len(c['value']) > 30 else f"  - {c['name']}: {c['value']}")
-            
+
             # Extract tokens from cookies
             result = extract_from_cookies(cookies)
+            result.update(user_info)
             
             if verbose:
                 click.echo(f"Debug: Extracted tokens: {result}")
@@ -180,43 +181,50 @@ def find_api_folders(base_path=None):
 def generate_bruno_env_files(tokens):
     """
     Generate cli-generated.bru files in environments folders under API directories.
-    
+
     Args:
-        tokens: Dict with keys 'jsessionid', 'token', 'x-signavio-id'
+        tokens: Dict with keys 'jsessionid', 'token', 'x-signavio-id',
+                'signavio-user-id', 'signavio-user-email', 'signavio-tenant-id'
     """
     # Extract values
     signavio_id = tokens.get('token') or tokens.get('x-signavio-id')
     jsessionid = tokens.get('jsessionid')
     token = tokens.get('token')
-    
+    signavio_user_id = tokens.get('signavio-user-id', '')
+    signavio_user_email = tokens.get('signavio-user-email', '')
+    signavio_tenant_id = tokens.get('signavio-tenant-id', '')
+
     if not signavio_id or not jsessionid:
         click.echo("Warning: Could not extract required tokens (JSESSIONID and token)", err=True)
         return
-    
+
     # Find API folders
     api_folders = find_api_folders()
-    
+
     if not api_folders:
         click.echo("No folders with 'API' in name found in current directory.")
         return
-    
+
     for api_folder in api_folders:
         # Create environments folder if it doesn't exist
         env_folder = api_folder / 'environments'
         env_folder.mkdir(exist_ok=True)
-        
+
         # Create or overwrite cli-generated.bru file
         bru_file = env_folder / 'cli-generated.bru'
-        
+
         # Create content
         content = f"""vars {{
   signavioId: {signavio_id}
   url: https://staging.signavio.com
   cookie: JSESSIONID={jsessionid}; token={token};
   x-signavio-cookie: JSESSIONID={jsessionid}; token={token};
+  signavio-user-id: {signavio_user_id}
+  signavio-user-email: {signavio_user_email}
+  signavio-tenant-id: {signavio_tenant_id}
 }}
 """
-        
+
         # Write file
         bru_file.write_text(content)
         click.echo(f"✓ Created {bru_file.relative_to(Path.cwd())}")
@@ -225,24 +233,25 @@ def generate_bruno_env_files(tokens):
 def update_vscode_settings_file(tokens):
     """
     Update .vscode/settings.json with authentication tokens.
-    
+
     Args:
-        tokens: Dict with keys 'jsessionid', 'token', 'x-signavio-id'
+        tokens: Dict with keys 'jsessionid', 'token', 'x-signavio-id',
+                'signavio-user-id', 'signavio-user-email', 'signavio-tenant-id'
     """
     # Extract values
     signavio_id = tokens.get('token') or tokens.get('x-signavio-id')
     jsessionid = tokens.get('jsessionid')
     token = tokens.get('token')
-    
+
     if not signavio_id or not jsessionid:
         click.echo("Warning: Could not extract required tokens for settings file", err=True)
         return
-    
+
     settings_path = Path.cwd() / '.vscode' / 'settings.json'
-    
+
     # Create .vscode directory if it doesn't exist
     settings_path.parent.mkdir(exist_ok=True)
-    
+
     # Read existing settings or create new dict
     if settings_path.exists():
         try:
@@ -251,35 +260,36 @@ def update_vscode_settings_file(tokens):
             settings = {}
     else:
         settings = {}
-    
+
     # Ensure structure exists
     if 'java.test.config' not in settings:
         settings['java.test.config'] = {}
     if 'env' not in settings['java.test.config']:
         settings['java.test.config']['env'] = {}
-    
+
     # Update environment variables
     settings['java.test.config']['env']['X_SIGNAVIO_ID'] = signavio_id
     settings['java.test.config']['env']['SIGNAVIO_COOKIE'] = f"JSESSIONID={jsessionid}; token={token};"
-    
+    settings['java.test.config']['env']['SIGNAVIO_USER_ID'] = tokens.get('signavio-user-id', '')
+    settings['java.test.config']['env']['SIGNAVIO_USER_EMAIL'] = tokens.get('signavio-user-email', '')
+    settings['java.test.config']['env']['SIGNAVIO_TENANT_ID'] = tokens.get('signavio-tenant-id', '')
+
     # Write back to file
     with open(settings_path, 'w') as f:
         json.dump(settings, f, indent=4)
-    
+
     click.echo(f"✓ Updated {settings_path.relative_to(Path.cwd())}")
 
 
 def update_task_client_app(tokens):
     """
-    Update docs/taskClient-app/index.html with live auth tokens in example chips.
+    Update docs/taskClient-app/index.html with live auth tokens in example chips,
+    and upsert the current user's entry in docs/taskClient-app/creds.local.json.
 
     Args:
-        tokens: Dict with keys 'jsessionid', 'token', 'x-signavio-id'
+        tokens: Dict with keys 'jsessionid', 'token', 'x-signavio-id',
+                'signavio-user-id', 'signavio-user-email', 'signavio-tenant-id'
     """
-    index_html = Path.cwd() / 'docs' / 'taskClient-app' / 'index.html'
-    if not index_html.exists():
-        return
-
     signavio_id = tokens.get('token') or tokens.get('x-signavio-id')
     jsessionid = tokens.get('jsessionid')
     token = tokens.get('token')
@@ -288,32 +298,61 @@ def update_task_client_app(tokens):
         click.echo("Warning: Could not extract required tokens for taskClient-app update", err=True)
         return
 
-    content = index_html.read_text()
+    # --- update index.html ---
+    index_html = Path.cwd() / 'docs' / 'taskClient-app' / 'index.html'
+    if index_html.exists():
+        content = index_html.read_text()
+        import re
+        content = re.sub(
+            r"(fillExample\('f-xsig',\s*')[^']+(')",
+            lambda m: m.group(1) + signavio_id + m.group(2),
+            content
+        )
+        signavio_cookie = f"JSESSIONID={jsessionid}; token={token};"
+        content = re.sub(
+            r"(fillExample\('f-cookie',\s*')[^']+(')",
+            lambda m: m.group(1) + signavio_cookie + m.group(2),
+            content
+        )
+        index_html.write_text(content)
+        click.echo(f"✓ Updated {index_html.relative_to(Path.cwd())}")
 
-    # Replace x-signavio-id example value
-    import re
-    content = re.sub(
-        r"(fillExample\('f-xsig',\s*')[^']+(')",
-        lambda m: m.group(1) + signavio_id + m.group(2),
-        content
-    )
+    # --- upsert creds.local.json ---
+    creds_file = Path.cwd() / 'docs' / 'taskClient-app' / 'creds.local.json'
+    if creds_file.exists():
+        try:
+            creds = json.loads(creds_file.read_text())
+        except (json.JSONDecodeError, IOError):
+            creds = []
+    else:
+        creds = []
 
-    # Replace cookie example value
-    signavio_cookie = f"JSESSIONID={jsessionid}; token={token};"
-    content = re.sub(
-        r"(fillExample\('f-cookie',\s*')[^']+(')",
-        lambda m: m.group(1) + signavio_cookie + m.group(2),
-        content
-    )
+    user_id = tokens.get('signavio-user-id', '')
+    new_entry = {
+        'signavioId': signavio_id,
+        'cookie': f"JSESSIONID={jsessionid}; token={token};",
+        'signavio-user-id': user_id,
+        'signavio-user-email': tokens.get('signavio-user-email', ''),
+        'signavio-tenant-id': tokens.get('signavio-tenant-id', ''),
+    }
 
-    index_html.write_text(content)
-    click.echo(f"✓ Updated {index_html.relative_to(Path.cwd())}")
+    matched = False
+    for i, entry in enumerate(creds):
+        if entry.get('signavio-user-id') == user_id:
+            creds[i] = new_entry
+            matched = True
+            break
+    if not matched:
+        creds.append(new_entry)
+
+    creds_file.write_text(json.dumps(creds, indent=2))
+    click.echo(f"✓ Updated {creds_file.relative_to(Path.cwd())}")
 
 
 def get_cache_dir():
     """
     Get the cache directory in the current working directory.
-    
+
     Returns:
         Path object for .cache/cli directory
     """
@@ -324,7 +363,7 @@ def get_cache_dir():
 def get_cache_files():
     """
     Get paths to cache files.
-    
+
     Returns:
         Tuple of (cache_data_file, cache_timestamp_file)
     """
@@ -332,6 +371,10 @@ def get_cache_files():
     cache_data = cache_dir / 'cli-generated.bru'
     cache_timestamp = cache_dir / '.cache-timestamp'
     return cache_data, cache_timestamp
+
+
+def get_user_info_cache_file():
+    return get_cache_dir() / 'user-info.json'
 
 
 def is_cache_valid():
@@ -365,30 +408,39 @@ def is_cache_valid():
 def save_to_cache(tokens):
     """
     Save tokens and timestamp to cache.
-    
+
     Args:
-        tokens: Dict with keys 'jsessionid', 'token', 'x-signavio-id'
+        tokens: Dict with keys 'jsessionid', 'token', 'x-signavio-id',
+                'signavio-user-id', 'signavio-user-email', 'signavio-tenant-id'
     """
     cache_dir = get_cache_dir()
     cache_dir.mkdir(parents=True, exist_ok=True)
-    
+
     cache_data, cache_timestamp = get_cache_files()
-    
+
     # Create bru content
     signavio_id = tokens.get('token') or tokens.get('x-signavio-id')
     jsessionid = tokens.get('jsessionid')
     token = tokens.get('token')
-    
+
     content = f"""vars {{
   signavioId: {signavio_id}
   url: https://staging.signavio.com
   cookie: JSESSIONID={jsessionid}; token={token};
 }}
 """
-    
+
     # Save cache data
     cache_data.write_text(content)
-    
+
+    # Save user info
+    user_info = {
+        'signavio-user-id': tokens.get('signavio-user-id', ''),
+        'signavio-user-email': tokens.get('signavio-user-email', ''),
+        'signavio-tenant-id': tokens.get('signavio-tenant-id', ''),
+    }
+    get_user_info_cache_file().write_text(json.dumps(user_info, indent=2))
+
     # Save timestamp
     timestamp = datetime.now().isoformat()
     cache_timestamp.write_text(timestamp)
@@ -397,39 +449,50 @@ def save_to_cache(tokens):
 def check_cache():
     """
     Check if valid cache exists and load it.
-    
+
     Returns:
         Dict with cached tokens if valid cache exists, None otherwise
     """
     if not is_cache_valid():
         return None
-    
+
     cache_data, cache_timestamp = get_cache_files()
-    
+
     try:
         # Parse the cached bru file to extract tokens
         content = cache_data.read_text()
-        
-        # Simple parsing of bru format
+
         result = {
             'jsessionid': None,
             'token': None,
-            'x-signavio-id': None
+            'x-signavio-id': None,
+            'signavio-user-id': '',
+            'signavio-user-email': '',
+            'signavio-tenant-id': '',
         }
-        
+
         # Extract signavioId
         if 'signavioId:' in content:
             sig_id = content.split('signavioId:')[1].split('\n')[0].strip()
             result['token'] = sig_id
             result['x-signavio-id'] = sig_id
-        
+
         # Extract JSESSIONID and token from cookie line
         if 'cookie:' in content:
             cookie_line = content.split('cookie:')[1].split(';')[0].strip()
             if 'JSESSIONID=' in cookie_line:
                 jsessionid = cookie_line.split('JSESSIONID=')[1].strip()
                 result['jsessionid'] = jsessionid
-        
+
+        # Load user info from companion file
+        user_info_file = get_user_info_cache_file()
+        if user_info_file.exists():
+            try:
+                user_info = json.loads(user_info_file.read_text())
+                result.update(user_info)
+            except (json.JSONDecodeError, IOError):
+                pass
+
         return result if result['jsessionid'] and result['token'] else None
     except (IOError, IndexError):
         return None

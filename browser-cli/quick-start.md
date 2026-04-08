@@ -3,7 +3,7 @@
 /.dist/sig-cred-cli
 
 # building from code
-./build-cli.sh
+./build-sig-cred-cli.sh
 /.dist/sig-cred-cli
 
 ## virtual env
@@ -12,7 +12,7 @@ source venv/bin/activate
 
 pip install -r requirements.txt
 python3 -m playwright install chromium
-python3 cli.py
+python3 sig-cred-cli.py
 
 
 # Deactivate virtual env

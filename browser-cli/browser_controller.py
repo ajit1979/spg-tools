@@ -3,6 +3,7 @@ Browser controller using Playwright to manage Chromium sessions.
 """
 
 from playwright.sync_api import sync_playwright
+import re
 import time
 import os
 import subprocess
@@ -18,7 +19,7 @@ class BrowserController:
     def __init__(self, headless=False, timeout=300, browser_type='light'):
         """
         Initialize browser controller.
-        
+
         Args:
             headless: Run browser in headless mode (False for SSO login)
             timeout: Timeout in seconds for operations
@@ -31,6 +32,7 @@ class BrowserController:
         self.browser = None
         self.context = None
         self.page = None
+        self.user_info = {}
         
     def __enter__(self):
         """Context manager entry."""
@@ -106,59 +108,106 @@ class BrowserController:
         if self.playwright:
             self.playwright.stop()
                 
+    def _capture_user_info_from_response(self, response):
+        """Parse /p/user/{id} JSON response and cache user details from rel=info."""
+        try:
+            if response.status != 200:
+                return
+
+            # Accept /p/user/{id} with optional query string.
+            if not re.search(r'/p/user/[^/?#]+(?:[?#].*)?$', response.url):
+                return
+
+            content_type = response.headers.get('content-type', '').lower()
+            if 'json' not in content_type:
+                return
+
+            payload = response.json()
+            if not isinstance(payload, list):
+                return
+
+            info_item = next(
+                (item for item in payload if isinstance(item, dict) and item.get('rel') == 'info'),
+                None,
+            )
+            if not info_item:
+                return
+
+            rep = info_item.get('rep')
+            if not isinstance(rep, dict):
+                return
+
+            licenses = rep.get('assignedLicenses')
+            primary_license = licenses[0] if isinstance(licenses, list) and licenses else {}
+            if not isinstance(primary_license, dict):
+                primary_license = {}
+
+            # Source of truth for user id and tenant is assignedLicenses[0].
+            self.user_info = {
+                'signavio-user-id': primary_license.get('user', ''),
+                'signavio-user-email': rep.get('mail', '') or primary_license.get('mail', ''),
+                'signavio-tenant-id': primary_license.get('tenant', ''),
+            }
+        except Exception:  # noqa: BLE001
+            # Ignore parse/network errors and keep waiting for the next matching response.
+            pass
+
     def navigate_and_wait(self, url):
         """
         Navigate to URL and wait for authentication to complete.
-        
+
         Waits for either:
         1. Detection of authentication cookies (JSESSIONID, token)
         2. Timeout
-        
+
         Args:
             url: URL to navigate to
-            
+
         Returns:
-            List of cookies
+            Tuple of (list of cookies, user_info dict)
         """
+        self.user_info = {}
+
         # First check if we already have valid cookies from previous session
         existing_cookies = self.context.cookies()
         has_jsessionid = any(c['name'] == 'JSESSIONID' for c in existing_cookies)
         has_token = any(c['name'] == 'token' for c in existing_cookies)
-        
+
         if has_jsessionid and has_token:
             print("✓ Found existing valid session. Using saved cookies.")
-            return existing_cookies
-        
+            return existing_cookies, self.user_info
+
+        # Register response interceptor before navigation to catch /p/user/{id} payload.
+        self.page.on('response', self._capture_user_info_from_response)
+
         # Navigate with timeout in milliseconds
         self.page.goto(url, timeout=self.timeout * 1000)
-        
-        # Store initial URL to track changes
-        initial_url = self.page.url
-        
+
         # Wait for authentication by checking for cookies
         start_time = time.time()
-        authenticated = False
-        
+
+        cookies_detected_at = None
+
         while time.time() - start_time < self.timeout:
-            # Check cookies
             cookies = self.context.cookies()
-            
-            # Look for authentication indicators
             has_jsessionid = any(c['name'] == 'JSESSIONID' for c in cookies)
             has_token = any(c['name'] == 'token' for c in cookies)
-            
+
             if has_jsessionid and has_token:
-                authenticated = True
-                # Give a bit more time for all cookies to be set
-                time.sleep(2)
-                break
-                
+                if self.user_info:
+                    # Both cookies and user info are ready.
+                    break
+
+                # Give the user-info API a short grace period after cookies appear.
+                if cookies_detected_at is None:
+                    cookies_detected_at = time.time()
+                elif time.time() - cookies_detected_at >= 8:
+                    break
+
             time.sleep(0.5)
-        
-        # Get final cookies
+
         final_cookies = self.context.cookies()
-        
-        return final_cookies
+        return final_cookies, self.user_info
         
     def get_cookies(self):
         """Get all cookies from current context."""

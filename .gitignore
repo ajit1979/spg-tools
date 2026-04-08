@@ -3,3 +3,5 @@ build/
 dist/
 .cache
 .vscode
+*.local.*
+cli-generated.bru
