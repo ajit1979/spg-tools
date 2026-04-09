@@ -75,25 +75,19 @@ class BrowserController:
         os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(browsers_path)
     
     def _ensure_browsers_installed(self):
-        """Ensure Playwright browsers are installed."""
+        """Ensure the correct Playwright-bundled Chromium version is installed."""
         try:
-            # Check if browsers are already installed
-            if os.uname().sysname == 'Darwin':
-                browsers_path = Path.home() / 'Library' / 'Caches' / 'ms-playwright'
-            else:
-                browsers_path = Path.home() / '.cache' / 'ms-playwright'
-            if browsers_path.exists() and list(browsers_path.glob('chromium-*')):
-                return
-            
-            # Install browsers
-            print("Installing Playwright browsers...")
-            subprocess.run(
+            result = subprocess.run(
                 ['playwright', 'install', 'chromium'],
-                check=True,
-                capture_output=True
+                capture_output=True,
+                text=True,
             )
-            print("Browsers installed successfully.")
-        except subprocess.CalledProcessError as e:
+            if result.returncode != 0:
+                print(f"Warning: Could not install Playwright browsers: {result.stderr.strip()}")
+                print("Please run: playwright install chromium")
+        except FileNotFoundError:
+            print("Warning: 'playwright' command not found. Please run: playwright install chromium")
+        except Exception as e:
             print(f"Warning: Could not auto-install browsers: {e}")
             print("Please run: playwright install chromium")
         
