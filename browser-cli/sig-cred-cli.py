@@ -298,8 +298,13 @@ def update_task_client_app(tokens):
         click.echo("Warning: Could not extract required tokens for taskClient-app update", err=True)
         return
 
+    app_dir = Path.cwd() / 'docs' / 'taskClient-app'
+    if not app_dir.exists() or not app_dir.is_dir():
+        click.echo("Info: docs/taskClient-app directory not found. Skipping taskClient-app update.")
+        return
+
     # --- update index.html ---
-    index_html = Path.cwd() / 'docs' / 'taskClient-app' / 'index.html'
+    index_html = app_dir / 'index.html'
     if index_html.exists():
         content = index_html.read_text()
         import re
@@ -318,13 +323,14 @@ def update_task_client_app(tokens):
         click.echo(f"✓ Updated {index_html.relative_to(Path.cwd())}")
 
     # --- upsert creds.local.json ---
-    creds_file = Path.cwd() / 'docs' / 'taskClient-app' / 'creds.local.json'
+    creds_file = app_dir / 'creds.local.json'
     if creds_file.exists():
         try:
             creds = json.loads(creds_file.read_text())
         except (json.JSONDecodeError, IOError):
             creds = []
     else:
+        # Explicitly initialize a new credentials file when directory exists
         creds = []
 
     user_id = tokens.get('signavio-user-id', '')
