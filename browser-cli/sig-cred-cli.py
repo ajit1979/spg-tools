@@ -94,6 +94,7 @@ def main(url, timeout, output, mask, verbose, browser, force_refresh):
             generate_bruno_env_files(cached_result)
             update_vscode_settings_file(cached_result)
             update_task_client_app(cached_result)
+            update_env_file(cached_result)
             return
     
     click.echo(f"Opening browser to: {url}")
@@ -143,6 +144,7 @@ def main(url, timeout, output, mask, verbose, browser, force_refresh):
             generate_bruno_env_files(unmasked_result)
             update_vscode_settings_file(unmasked_result)
             update_task_client_app(unmasked_result)
+            update_env_file(unmasked_result)
             
             # Save to cache
             save_to_cache(unmasked_result)
@@ -303,24 +305,24 @@ def update_task_client_app(tokens):
         click.echo("Info: docs/taskClient-app directory not found. Skipping taskClient-app update.")
         return
 
-    # --- update index.html ---
-    index_html = app_dir / 'index.html'
-    if index_html.exists():
-        content = index_html.read_text()
-        import re
-        content = re.sub(
-            r"(fillExample\('f-xsig',\s*')[^']+(')",
-            lambda m: m.group(1) + signavio_id + m.group(2),
-            content
-        )
-        signavio_cookie = f"JSESSIONID={jsessionid}; token={token};"
-        content = re.sub(
-            r"(fillExample\('f-cookie',\s*')[^']+(')",
-            lambda m: m.group(1) + signavio_cookie + m.group(2),
-            content
-        )
-        index_html.write_text(content)
-        click.echo(f"✓ Updated {index_html.relative_to(Path.cwd())}")
+    # # --- update index.html ---
+    # index_html = app_dir / 'index.html'
+    # if index_html.exists():
+    #     content = index_html.read_text()
+    #     import re
+    #     content = re.sub(
+    #         r"(fillExample\('f-xsig',\s*')[^']+(')",
+    #         lambda m: m.group(1) + signavio_id + m.group(2),
+    #         content
+    #     )
+    #     signavio_cookie = f"JSESSIONID={jsessionid}; token={token};"
+    #     content = re.sub(
+    #         r"(fillExample\('f-cookie',\s*')[^']+(')",
+    #         lambda m: m.group(1) + signavio_cookie + m.group(2),
+    #         content
+    #     )
+    #     index_html.write_text(content)
+    #     click.echo(f"✓ Updated {index_html.relative_to(Path.cwd())}")
 
     # --- upsert creds.local.json ---
     creds_file = app_dir / 'creds.local.json'
@@ -353,6 +355,51 @@ def update_task_client_app(tokens):
 
     creds_file.write_text(json.dumps(creds, indent=2))
     click.echo(f"✓ Updated {creds_file.relative_to(Path.cwd())}")
+
+
+def update_env_file(tokens):
+    """
+    Create or update .env file with authentication tokens.
+    Only updates the known keys; all other lines are preserved as-is.
+    """
+    signavio_id = tokens.get('token') or tokens.get('x-signavio-id')
+    jsessionid = tokens.get('jsessionid')
+    token = tokens.get('token')
+
+    if not signavio_id or not jsessionid:
+        click.echo("Warning: Could not extract required tokens for .env update", err=True)
+        return
+
+    env_path = Path.cwd() / '.env'
+
+    updates = {
+        'X_SIGNAVIO_ID': signavio_id,
+        'SIGNAVIO_COOKIE': f"JSESSIONID={jsessionid}; token={token};",
+        'SIGNAVIO_USER_ID': tokens.get('signavio-user-id', ''),
+        'SIGNAVIO_USER_EMAIL': tokens.get('signavio-user-email', ''),
+        'SIGNAVIO_TENANT_ID': tokens.get('signavio-tenant-id', ''),
+    }
+
+    lines = env_path.read_text().splitlines(keepends=True) if env_path.exists() else []
+
+    updated_keys = set()
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith('#') and '=' in stripped:
+            key = stripped.split('=', 1)[0].strip()
+            if key in updates:
+                new_lines.append(f"{key}={updates[key]}\n")
+                updated_keys.add(key)
+                continue
+        new_lines.append(line)
+
+    for key, value in updates.items():
+        if key not in updated_keys:
+            new_lines.append(f"{key}={value}\n")
+
+    env_path.write_text(''.join(new_lines))
+    click.echo(f"✓ Updated {env_path.relative_to(Path.cwd())}")
 
 
 def get_cache_dir():

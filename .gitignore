@@ -5,3 +5,4 @@ dist/
 .vscode
 *.local.*
 cli-generated.bru
+.env
